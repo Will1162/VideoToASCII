@@ -1,15 +1,11 @@
 ﻿using System;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 using System.Globalization;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.ComponentModel;
 using Microsoft.WindowsAPICodePack.Shell;
 using Microsoft.WindowsAPICodePack.Shell.PropertySystem;
 
@@ -22,7 +18,7 @@ namespace VideoToAscii
         {
             string originalFilePath = "";
             string tempFolderPath = Directory.GetCurrentDirectory() + @"\temp\";
-            string charMap = " .-+o#@";
+            string charMap = " .`,-+=o#%@";
             string prevFrame = "";
             string[] images;
             byte[,] consoleColours;
@@ -43,10 +39,11 @@ namespace VideoToAscii
             while (quality < 1 || quality > 51)
             {
                 Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.WriteLine("/============QUALITY SETTINGS=============\\");
-                Console.WriteLine("| 1  -> best quality, very high file size |");
-                Console.WriteLine("| 51 -> worst quality, very low file size |");
-                Console.WriteLine("\\=========================================/");
+                Console.WriteLine("/=============QUALITY SETTINGS=============\\");
+                Console.WriteLine("| 1  -> best quality,  very high file size |");
+                Console.WriteLine("| 25 -> ok quality,    ok file size        |");
+                Console.WriteLine("| 51 -> worst quality, very low file size  |");
+                Console.WriteLine("\\==========================================/");
                 Console.Write("\nEnter quality value from 1 to 51: ");
                 
                 try
@@ -123,8 +120,8 @@ namespace VideoToAscii
                         // get brightness of the current pixel and map it to charMap (ascii brightness scale)
                         Color pixel = newImage.GetPixel(j, i);
 
-                        float brightness = (pixel.R + pixel.G + pixel.B) / 3;
-                        char value = charMap[(int)Math.Floor((brightness / 256) * charMap.Length)];
+                        float brightness = Brightness(pixel.R, pixel.G, pixel.B);
+                        char value = charMap[(int)Math.Floor((brightness / 256) * (charMap.Length))];
 
                         for (int h = 0; h < colours.Length; h++)
                         {
@@ -293,96 +290,19 @@ namespace VideoToAscii
             return "#" + c.R.ToString("X2") + c.G.ToString("X2") + c.B.ToString("X2");
         }
 
-    }
-
-    public class ConsoleReader
-    {
-        // class to get console output as array
-
-        public static IEnumerable<string> ReadFromBuffer(short x, short y, short width, short height)
+        public static float Brightness(int r, int g, int b)
         {
-            IntPtr buffer = Marshal.AllocHGlobal(width * height * Marshal.SizeOf(typeof(CHAR_INFO)));
-            if (buffer == null)
-                throw new OutOfMemoryException();
+            // gets the brightness of a hex code
 
-            try
-            {
-                COORD coord = new COORD();
-                SMALL_RECT rc = new SMALL_RECT();
-                rc.Left = x;
-                rc.Top = y;
-                rc.Right = (short)(x + width - 1);
-                rc.Bottom = (short)(y + height - 1);
+            // brightest and dimmest rgb components
+            float min = Math.Min(Math.Min(r, g), b);
+            float max = Math.Max(Math.Max(r, g), b);
 
-                COORD size = new COORD();
-                size.X = width;
-                size.Y = height;
+            // average the min and max
+            float brightness = (float)((max + min) / 2);
 
-                const int STD_OUTPUT_HANDLE = -11;
-                if (!ReadConsoleOutput(GetStdHandle(STD_OUTPUT_HANDLE), buffer, size, coord, ref rc))
-                {
-                    // 'Not enough storage is available to process this command' may be raised for buffer size > 64K (see ReadConsoleOutput doc.)
-                    throw new Win32Exception(Marshal.GetLastWin32Error());
-                }
-
-                IntPtr ptr = buffer;
-                for (int h = 0; h < height; h++)
-                {
-                    StringBuilder sb = new StringBuilder();
-                    for (int w = 0; w < width; w++)
-                    {
-                        CHAR_INFO ci = (CHAR_INFO)Marshal.PtrToStructure(ptr, typeof(CHAR_INFO));
-                        char[] chars = Console.OutputEncoding.GetChars(ci.charData);
-                        sb.Append(chars[0]);
-                        ptr += Marshal.SizeOf(typeof(CHAR_INFO));
-                    }
-                    yield return sb.ToString();
-                }
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(buffer);
-            }
+            return brightness;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
-        private struct CHAR_INFO
-        {
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)]
-            public byte[] charData;
-            public short attributes;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct COORD
-        {
-            public short X;
-            public short Y;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct SMALL_RECT
-        {
-            public short Left;
-            public short Top;
-            public short Right;
-            public short Bottom;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct CONSOLE_SCREEN_BUFFER_INFO
-        {
-            public COORD dwSize;
-            public COORD dwCursorPosition;
-            public short wAttributes;
-            public SMALL_RECT srWindow;
-            public COORD dwMaximumWindowSize;
-        }
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool ReadConsoleOutput(IntPtr hConsoleOutput, IntPtr lpBuffer, COORD dwBufferSize, COORD dwBufferCoord, ref SMALL_RECT lpReadRegion);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr GetStdHandle(int nStdHandle);
     }
 }
